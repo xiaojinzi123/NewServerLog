@@ -23,12 +23,12 @@ public class Message<T> {
     会把 Client 订阅的数据类型的 数据提供的 Client 信息发送给 数据消费者的 Client*/
     public static final String TYPE_PROVIDER_LIST = "providerList";
 
-    public static final String ATTR_SELF_TAG = "selfTag";
+    public static final String ATTR_OWNER = "owner";
     public static final String ATTR_TYPE = "type";
     public static final String ATTR_DATA = "data";
 
     // 表示自身的 Tag
-    private String selfTag;
+    private Owner owner;
 
     // 标记消息的类型
     private String type;
@@ -40,7 +40,7 @@ public class Message<T> {
     public static Message heartbeatMessage() {
         Message message = new Message();
         message.setType(TYPE_HEARTBEAT);
-        message.setSelfTag(Server.TAG);
+        message.setOwner(Server.getInstance().toOwner());
         return message;
     }
 
@@ -48,17 +48,17 @@ public class Message<T> {
     public static Message clientTagMessage(@NotEmpty String tag) {
         Message message = new Message();
         message.setType(TYPE_CLIENT_TAG);
-        message.setSelfTag(Server.TAG);
+        message.setOwner(Server.getInstance().toOwner());
         message.setData(tag);
         return message;
     }
 
-    public String getSelfTag() {
-        return selfTag;
+    public Owner getOwner() {
+        return owner;
     }
 
-    public void setSelfTag(String selfTag) {
-        this.selfTag = selfTag;
+    public void setOwner(Owner owner) {
+        this.owner = owner;
     }
 
     public String getType() {
@@ -75,6 +75,32 @@ public class Message<T> {
 
     public void setData(T data) {
         this.data = data;
+    }
+
+    public static class Owner {
+
+        public static final String ATTR_UID = "uid";
+        public static final String ATTR_NAME = "name";
+
+        private String uid;
+        private String name;
+
+        public Owner(String uid, String name) {
+            this.uid = uid;
+            this.name = name;
+        }
+        public String getUid() {
+            return uid;
+        }
+        public void setUid(String uid) {
+            this.uid = uid;
+        }
+        public String getName() {
+            return name;
+        }
+        public void setName(String name) {
+            this.name = name;
+        }
     }
 
 }

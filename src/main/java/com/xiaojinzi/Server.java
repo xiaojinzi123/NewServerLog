@@ -6,19 +6,22 @@ import com.xiaojinzi.anno.NotNull;
 import com.xiaojinzi.anno.ThreadSafe;
 import com.xiaojinzi.anno.ThreadUnSafe;
 import com.xiaojinzi.bean.Message;
+import com.xiaojinzi.util.MessageJsonUtil;
 import com.xiaojinzi.util.Strings;
 import org.json.JSONObject;
 
-import javax.json.Json;
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Consumer;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 public class Server {
 
+    public static final String UID = "Server_" + UUID.randomUUID().toString();
     public static final String TAG = "Server";
+
+    public static final Message.Owner owner = new Message.Owner(UID, TAG);
 
     private static Server instance = new Server();
 
@@ -28,7 +31,9 @@ public class Server {
     private final CopyOnWriteArrayList<Client> clientList = new CopyOnWriteArrayList<>();
 
     @ThreadSafe
-    private final List<String> messageQueue = Collections.synchronizedList(new LinkedList());
+    // private final List<String> messageQueue = Collections.synchronizedList(new LinkedList());
+
+    private ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
 
     private Server() {
     }
@@ -43,33 +48,42 @@ public class Server {
      */
     @ThreadUnSafe
     public boolean forward(@NotEmpty String message) {
-
-        JSONObject jb = new JSONObject(message);
-        String type = jb.optString(Message.ATTR_TYPE);
-        String selfTag = jb.optString(Message.ATTR_SELF_TAG);
-        // 如果消息的必须的参数不足, 则被忽略
-        if (Strings.isEmpty(type) || Strings.isEmpty(selfTag)) {
+        try {
+            JSONObject jb = new JSONObject(message);
+            String type = jb.optString(Message.ATTR_TYPE);
+            // 如果消息的必须的参数不足, 则被忽略
+            if (Strings.isEmpty(type) || MessageJsonUtil.isOwnerInvalid(jb)) {
+                return false;
+            }
+            // 如果是心跳包, 则忽略
+            if (Message.TYPE_HEARTBEAT.equals(type)) {
+                return false;
+            }
+            doForward(message);
+            // messageQueue.add(message);
+            // 转发给感兴趣的 Client
+            return true;
+        } catch (Exception ignore) {
             return false;
         }
-        // 如果是心跳包, 则忽略
-        if (Message.TYPE_HEARTBEAT.equals(type)) {
-            return false;
-        }
-
-        messageQueue.add(message);
-        // 转发给感兴趣的 Client
-        return true;
-
     }
 
     @ThreadUnSafe
-    private void doForward(@NotEmpty String message) {
-        JSONObject jb = new JSONObject(message);
-        String type = jb.optString(Message.ATTR_TYPE);
-        List<Client> clients = filterClientBySubscribeType(type);
-        clients.forEach(client -> {
-            client.send(message);
+    private void doForward(@NotEmpty final String message) {
+        executorService.submit(() -> {
+            try {
+                JSONObject jb = new JSONObject(message);
+                String type = jb.optString(Message.ATTR_TYPE);
+                List<Client> clients = filterClientBySubscribeType(type);
+                clients.forEach(client -> {
+                    client.send(message);
+                });
+            } catch (Exception ignore) {
+                System.out.println("---------");
+                // ignore
+            }
         });
+
     }
 
     /**
@@ -84,16 +98,6 @@ public class Server {
     }
 
     /**
-     * 添加了一个 Client
-     */
-    @ThreadSafe
-    public synchronized void addClient(@NotNull Client client) {
-        if (!clientList.contains(client)) {
-            clientList.add(client);
-        }
-    }
-
-    /**
      * 每一个 Client 都可能有感兴趣的数据类型和想要订阅的数据类型
      * 这个方法会把 Client 感兴趣的数据类型的提供者的所有 Client 的信息给发送过去
      */
@@ -102,26 +106,45 @@ public class Server {
 
         // key 为某一个数据类型的提供, 比如 network
         // value 为提供 key 这种数据类型的 Client 的信息
-        Map<String, List<Client.Info>> map = new HashMap<>();
+        Map<String, List<Message.Owner>> map = new HashMap<>();
         clientList.forEach(client -> {
             Set<String> providerTypes = client.getProviderTypes();
             for (String providerType : providerTypes) {
-                List<Client.Info> clients = map.getOrDefault(providerType, new ArrayList<>());
-                clients.add(client.toInfo());
-                map.put(providerType, clients);
+                String key = Message.TYPE_PROVIDER_LIST + Message.AI_TE + providerType;
+                List<Message.Owner> clients = map.getOrDefault(key, new ArrayList<>());
+                clients.add(client.toOwner());
+                map.put(key, clients);
             }
         });
 
-        Set<Map.Entry<String, List<Client.Info>>> entries = map.entrySet();
+        clientList.forEach(client -> {
+            Set<String> subscribeTypes = client.getSubscribeTypes();
+            for (String subscribeType : subscribeTypes) {
+                // subscribeType 可能为：network, providerList@network
+                // 但是只要 providerList@ 开头的
+                if (!subscribeType.startsWith(Message.TYPE_PROVIDER_LIST + Message.AI_TE)) {
+                    continue;
+                }
+                List<Message.Owner> clientInfoList = map.getOrDefault(subscribeType, new ArrayList<>());
+                Message message = new Message();
+                message.setType(subscribeType);
+                message.setOwner(toOwner());
+                message.setData(clientInfoList);
+                forward(g.toJson(message));
+            }
+        });
 
-        for (Map.Entry<String, List<Client.Info>> entry : entries) {
-            Message message = new Message();
-            message.setType(Message.TYPE_PROVIDER_LIST + Message.AI_TE + entry.getKey());
-            message.setSelfTag(TAG);
-            message.setData(entry.getValue());
-            messageQueue.add(g.toJson(message));
+    }
+
+    /**
+     * 添加了一个 Client
+     */
+    @ThreadSafe
+    public synchronized void addClient(@NotNull Client client) {
+        if (!clientList.contains(client)) {
+            clientList.add(client);
         }
-
+        sendClientInfo();
     }
 
     /**
@@ -130,6 +153,11 @@ public class Server {
     @ThreadSafe
     public synchronized void removeClient(@NotNull Client client) {
         clientList.remove(client);
+        sendClientInfo();
+    }
+
+    public Message.Owner toOwner(){
+        return owner;
     }
 
 }

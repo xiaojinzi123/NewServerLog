@@ -79,28 +79,37 @@ public abstract class Client {
      * 接收到 Client 发送上来的消息, 让 Server 进行转发
      */
     protected void onAcceptMessage(@NotEmpty String message) {
-        JSONObject jb = new JSONObject(message);
-        // 获取类型
-        String type = jb.getString(Message.ATTR_TYPE);
-        // 如果是设置名称
-        if (Message.TYPE_SET_CLIENT_NAME.equals(type)) {
-            name = jb.getString(Message.ATTR_DATA);
-        } else if (Message.TYPE_SET_PROVIDER_TYPES.equals(type)) {
-            JSONArray jsonArray1 = jb.getJSONArray(Message.ATTR_DATA);
-            int length = jsonArray1.length();
-            providerTypes.clear();
-            for (int i = 0; i < length; i++) {
-                providerTypes.add(jsonArray1.getString(i));
+        try {
+            JSONObject jb = new JSONObject(message);
+            // 获取类型
+            String type = jb.optString(Message.ATTR_TYPE);
+            // 如果是设置名称
+            if (Message.TYPE_SET_CLIENT_NAME.equals(type)) {
+                name = jb.getString(Message.ATTR_DATA);
+                Server.getInstance().sendClientInfo();
+            } else if (Message.TYPE_SET_PROVIDER_TYPES.equals(type)) {
+                JSONArray jsonArray1 = jb.getJSONArray(Message.ATTR_DATA);
+                int length = jsonArray1.length();
+                providerTypes.clear();
+                for (int i = 0; i < length; i++) {
+                    providerTypes.add(jsonArray1.getString(i));
+                }
+                Server.getInstance().sendClientInfo();
+            }  else if (Message.TYPE_SET_SUBSCRIBE_TYPES.equals(type)) {
+                JSONArray jsonArray2 = jb.getJSONArray(Message.ATTR_DATA);
+                int length = jsonArray2.length();
+                subscribeTypes.clear();
+                for (int i = 0; i < length; i++) {
+                    subscribeTypes.add(jsonArray2.getString(i));
+                }
+                Server.getInstance().sendClientInfo();
+            } else {
+                jb.put(Message.ATTR_OWNER, toOwner());
+                Server.getInstance().forward(jb.toString());
             }
-        }  else if (Message.TYPE_SET_SUBSCRIBE_TYPES.equals(type)) {
-            JSONArray jsonArray2 = jb.getJSONArray(Message.ATTR_DATA);
-            int length = jsonArray2.length();
-            subscribeTypes.clear();
-            for (int i = 0; i < length; i++) {
-                providerTypes.add(jsonArray2.getString(i));
-            }
-        } else {
-            Server.getInstance().forward(message);
+        } catch (Exception ignore) {
+            // ignore
+            System.out.println("------");
         }
     }
 
@@ -125,37 +134,8 @@ public abstract class Client {
     }
 
     @NotNull
-    public Info toInfo() {
-        return new Info(getUID(), getName());
-    }
-
-    public static class Info {
-
-        private String uid;
-
-        private String name;
-
-        public Info(String uid, String name) {
-            this.uid = uid;
-            this.name = name;
-        }
-
-        public String getUid() {
-            return uid;
-        }
-
-        public void setUid(String uid) {
-            this.uid = uid;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
-        }
-
+    public Message.Owner toOwner() {
+        return new Message.Owner(getUID(), getName());
     }
 
 }
