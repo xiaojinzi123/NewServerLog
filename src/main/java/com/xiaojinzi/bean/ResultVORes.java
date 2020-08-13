@@ -1,8 +1,13 @@
 package com.xiaojinzi.bean;
 
+import com.xiaojinzi.anno.NotEmpty;
+import com.xiaojinzi.anno.Nullable;
+
 public class ResultVORes<T> {
 
     public static final int CODE_SUCCESS = 0;
+
+    public static final int CODE_ERROR_NORMAL = 10000;
 
     /**
      * 非 0 都是错误的
@@ -25,8 +30,16 @@ public class ResultVORes<T> {
         this.data = data;
     }
 
-    public static <T> ResultVORes<T> success(T t) {
+    public static <T> ResultVORes<T> success() {
+        return success(null);
+    }
+
+    public static <T> ResultVORes<T> success(@Nullable T t) {
         return new ResultVORes(CODE_SUCCESS, null, t);
+    }
+
+    public static <T> ResultVORes<T> error(int errorCode, @NotEmpty String errMessage) {
+        return new ResultVORes(errorCode, errMessage, null);
     }
 
     public int getErrorCode() {

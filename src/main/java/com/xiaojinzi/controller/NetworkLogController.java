@@ -2,12 +2,14 @@ package com.xiaojinzi.controller;
 
 
 import com.google.gson.Gson;
-import com.xiaojinzi.NetworkLog;
-import com.xiaojinzi.bean.Message;
+import com.xiaojinzi.Server;
 import com.xiaojinzi.bean.ResultVORes;
 import com.xiaojinzi.util.RSAUtil;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.security.PrivateKey;
 import java.util.Base64;
@@ -26,22 +28,14 @@ public class NetworkLogController {
      */
     @ResponseBody
     @PostMapping("log")
-    public String log(@RequestParam("tag") String tag,
-                      @RequestParam("data") String data) {
-        if (tag == null || tag.length() == 0) {
-            throw new NullPointerException("data is null");
-        }
+    public ResultVORes log(@RequestParam("data") String data) {
         if (data == null || data.length() == 0) {
             throw new NullPointerException("data is null");
         }
-        Message message = g.fromJson(data, Message.class);
-        String deviceName = NetworkLog.getInstance().getDeviceName(tag);
-        if (deviceName == null) {
-            return "fail";
-        } else {
-            message.setSelfTag(deviceName);
-            NetworkLog.getInstance().sendNetworkLog(message);
-            return "success";
+        if (Server.getInstance().forward(data)) {
+            return ResultVORes.success();
+        }else {
+            return ResultVORes.error(ResultVORes.CODE_ERROR_NORMAL, "fail");
         }
     }
 

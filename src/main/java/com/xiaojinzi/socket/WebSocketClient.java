@@ -1,8 +1,9 @@
 package com.xiaojinzi.socket;
 
 
-import com.xiaojinzi.NetworkCustomer;
-import com.xiaojinzi.NetworkLog;
+import com.xiaojinzi.Client;
+import com.xiaojinzi.anno.AnyThread;
+import com.xiaojinzi.anno.NotNull;
 import org.springframework.stereotype.Component;
 
 import javax.websocket.OnClose;
@@ -13,8 +14,8 @@ import javax.websocket.server.ServerEndpoint;
 import java.util.Vector;
 
 @Component
-@ServerEndpoint("/networkConsume")
-public class WebSocketCustomer implements NetworkCustomer {
+@ServerEndpoint("/client")
+public class WebSocketClient extends Client {
 
     /**
      * 所有的回话
@@ -29,7 +30,7 @@ public class WebSocketCustomer implements NetworkCustomer {
      */
     @OnMessage
     public void onMessage(Session session, String message) {
-        // empty
+        onAcceptMessage(message);
     }
 
     /**
@@ -46,7 +47,7 @@ public class WebSocketCustomer implements NetworkCustomer {
     public void onOpen(Session session) {
         mSession = session;
         sessions.add(session);
-        NetworkLog.getInstance().addCustomer(this);
+        onOpenClient();
     }
 
     /**
@@ -57,20 +58,8 @@ public class WebSocketCustomer implements NetworkCustomer {
         destroy();
     }
 
-    @Override
-    public synchronized void send(String data) {
-        if (mSession == null) {
-            return;
-        }
-        try {
-            mSession.getBasicRemote().sendText(data);
-        } catch (Exception e) {
-            destroy();
-        }
-    }
-
     private void destroy(){
-        NetworkLog.getInstance().removeCustomer(this);
+        onCloseClient();
         if (mSession != null) {
             sessions.remove(mSession);
             try {
@@ -78,6 +67,19 @@ public class WebSocketCustomer implements NetworkCustomer {
             } catch (Exception ignore) {
                 // ignore
             }
+        }
+    }
+
+    @Override
+    @AnyThread
+    public synchronized void send(@NotNull String message) {
+        if (mSession == null) {
+            return;
+        }
+        try {
+            mSession.getBasicRemote().sendText(message);
+        } catch (Exception e) {
+            destroy();
         }
     }
 
