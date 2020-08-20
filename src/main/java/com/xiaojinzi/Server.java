@@ -6,6 +6,8 @@ import com.xiaojinzi.anno.NotNull;
 import com.xiaojinzi.anno.ThreadSafe;
 import com.xiaojinzi.anno.ThreadUnSafe;
 import com.xiaojinzi.bean.Message;
+import com.xiaojinzi.bean.MessageFragment;
+import com.xiaojinzi.util.AiTeContentUtil;
 import com.xiaojinzi.util.MessageJsonUtil;
 import com.xiaojinzi.util.Strings;
 import org.json.JSONObject;
@@ -17,6 +19,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 public class Server {
+
+    public static final String AITE = "@";
 
     public static final String UID = "Server_" + UUID.randomUUID().toString();
     public static final String TAG = "Server";
@@ -30,9 +34,7 @@ public class Server {
     @ThreadSafe
     private final CopyOnWriteArrayList<Client> clientList = new CopyOnWriteArrayList<>();
 
-    @ThreadSafe
-    // private final List<String> messageQueue = Collections.synchronizedList(new LinkedList());
-
+    // 线程池
     private ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
 
     private Server() {
@@ -59,10 +61,14 @@ public class Server {
             if (Message.TYPE_HEARTBEAT.equals(type)) {
                 return false;
             }
-            doForward(message);
-            // messageQueue.add(message);
-            // 转发给感兴趣的 Client
-            return true;
+            // 如果是分片的数据, 需要加到数据缓存中
+            if (Message.TYPE_DATA_FRAGMENT.equals(type)) {
+                MessageFragment messageFragment = g.fromJson(message, MessageFragment.class);
+                return DataFragment.INSTANCE.addData(messageFragment);
+            } else {
+                doForward(message);
+                return true;
+            }
         } catch (Exception ignore) {
             return false;
         }
@@ -79,7 +85,6 @@ public class Server {
                     client.send(message);
                 });
             } catch (Exception ignore) {
-                System.out.println("---------");
                 // ignore
             }
         });

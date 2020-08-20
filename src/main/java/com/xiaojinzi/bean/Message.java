@@ -22,6 +22,8 @@ public class Message<T> {
     /*这个表示当 Cient 发生变化的时候,
     会把 Client 订阅的数据类型的 数据提供的 Client 信息发送给 数据消费者的 Client*/
     public static final String TYPE_PROVIDER_LIST = "providerList";
+    /*表示数据分片传送*/
+    public static final String TYPE_DATA_FRAGMENT = "dataFragment";
 
     public static final String ATTR_OWNER = "owner";
     public static final String ATTR_TYPE = "type";

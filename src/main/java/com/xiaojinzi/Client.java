@@ -95,7 +95,7 @@ public abstract class Client {
                     providerTypes.add(jsonArray1.getString(i));
                 }
                 Server.getInstance().sendClientInfo();
-            }  else if (Message.TYPE_SET_SUBSCRIBE_TYPES.equals(type)) {
+            } else if (Message.TYPE_SET_SUBSCRIBE_TYPES.equals(type)) {
                 JSONArray jsonArray2 = jb.getJSONArray(Message.ATTR_DATA);
                 int length = jsonArray2.length();
                 subscribeTypes.clear();
@@ -104,12 +104,12 @@ public abstract class Client {
                 }
                 Server.getInstance().sendClientInfo();
             } else {
-                jb.put(Message.ATTR_OWNER, toOwner());
+                JSONObject ownerJb = new JSONObject(toOwner());
+                jb.put(Message.ATTR_OWNER, ownerJb);
                 Server.getInstance().forward(jb.toString());
             }
         } catch (Exception ignore) {
             // ignore
-            System.out.println("------");
         }
     }
 
@@ -117,6 +117,9 @@ public abstract class Client {
      * 打开了一个 Client
      */
     protected void onOpenClient() {
+        /*char[] arr = new char[3000000];
+        Arrays.fill(arr, 'a');
+        send(new String(arr));*/
         Server.getInstance().addClient(this);
         Message message = Message.clientTagMessage(getUID());
         send(g.toJson(message));
